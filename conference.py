@@ -303,7 +303,7 @@ class ConferenceApi(remote.Service):
         return self._createConferenceObject(request)
 
     @endpoints.method(SES_POST_REQUEST, SessionForm, 
-            path='session/{websafeConferenceKey}',
+            path='conference/{websafeConferenceKey}/session',
             http_method='POST', name='createSession')
     def createSession(self, request):
         """Create new session."""
