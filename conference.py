@@ -32,6 +32,9 @@ from models import BooleanMessage
 from models import Conference
 from models import ConferenceForm
 from models import ConferenceForms
+from models import Session
+from models import SessionForm
+from models import SessionForms
 from models import ConferenceQueryForm
 from models import ConferenceQueryForms
 from models import TeeShirtSize
@@ -58,6 +61,13 @@ DEFAULTS = {
     "topics": [ "Default", "Topic" ],
 }
 
+S_DEFAULTS = {
+    "speaker": "Mister Bush",
+    "sessionType": "INFO",
+    "highlights": [ "Big", "Fun" ],
+}
+    
+
 OPERATORS = {
             'EQ':   '=',
             'GT':   '>',
@@ -81,6 +91,11 @@ CONF_GET_REQUEST = endpoints.ResourceContainer(
 
 CONF_POST_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
+    websafeConferenceKey=messages.StringField(1),
+)
+
+SES_POST_REQUEST = endpoints.ResourceContainer(
+    SessionForm,
     websafeConferenceKey=messages.StringField(1),
 )
 
@@ -126,6 +141,7 @@ class ConferenceApi(remote.Service):
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        print "The data[websafekey] is ", data['websafeKey']
         del data['websafeKey']
         del data['organizerDisplayName']
 
@@ -150,6 +166,7 @@ class ConferenceApi(remote.Service):
         # generate Profile Key based on user ID and Conference
         # ID based on Profile key get Conference key from ID
         p_key = ndb.Key(Profile, user_id)
+        print "The p_key is ", p_key
         c_id = Conference.allocate_ids(size=1, parent=p_key)[0]
         c_key = ndb.Key(Conference, c_id, parent=p_key)
         data['key'] = c_key
@@ -158,6 +175,7 @@ class ConferenceApi(remote.Service):
         # create Conference, send email to organizer confirming
         # creation of Conference & return (modified) ConferenceForm
         # TODO 2: add confirmation email sending task to queue
+        print "Before Session(**data).put() ... data == ", data
         Conference(**data).put()
         taskqueue.add(params={'email': user.email(),
             'conferenceInfo': repr(request)},
@@ -166,6 +184,77 @@ class ConferenceApi(remote.Service):
 
         return request
 
+    def _copySessionToForm(self, ses):
+        """Copy relevant fields from Conference to ConferenceForm."""
+        ses = SessionForm()
+        for field in ses.all_fields():
+            if hasattr(ses, field.name):
+                # convert Date to date string; just copy others
+                if field.name.endswith('Date'):
+                    setattr(ses, field.name, str(getattr(ses, field.name)))
+                else:
+                    setattr(ses, field.name, getattr(ses, field.name))
+            elif field.name == "websafeKey":
+                setattr(ses, field.name, ses.key.urlsafe())
+
+        ses.check_initialized()
+        return ses
+
+    def createSessionObject(self, request):
+        """Create or update Session object, returning SessionForm/request."""
+        # preload necessary data items
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        if not request.name:
+            raise endpoints.BadRequestException("Session 'name' field required")
+
+        # copy ConferenceForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        print "The data[websafekey] is ", data['websafeKey']
+        del data['websafeKey']
+        del data['websafeConferenceKey']
+
+
+        #del data['organizerDisplayName']
+
+        # add default values for those missing (both data model & outbound Message)
+        for df in S_DEFAULTS:
+            if data[df] in (None, []):
+                data[df] = S_DEFAULTS[df]
+                setattr(request, df, S_DEFAULTS[df])
+        print "The data is ", data
+
+        # update existing conference
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        print "conf == ", conf
+        print "conf key == ", conf.key
+
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+
+
+        s_id = Session.allocate_ids(size=1, parent=conf.key)[0]
+        s_key = ndb.Key(Session, s_id, parent=conf.key)
+        data['key'] = s_key
+
+        print "Before Session(**data).put() ... data == ", data
+        Session(**data).put()
+        # check that conference exists
+        
+        # check that user is owner
+        #if user_id != conf.organizerUserId:
+        #    raise endpoints.ForbiddenException(
+        #        'Only the owner can update the conference.')
+        print "THe conference key is ", conf.key
+
+
+        ses = s_key.get()
+      
+        return self._copySessionToForm(ses)
 
     @ndb.transactional()
     def _updateConferenceObject(self, request):
@@ -212,6 +301,13 @@ class ConferenceApi(remote.Service):
     def createConference(self, request):
         """Create new conference."""
         return self._createConferenceObject(request)
+
+    @endpoints.method(SES_POST_REQUEST, SessionForm, 
+            path='session/{websafeConferenceKey}',
+            http_method='POST', name='createSession')
+    def createSession(self, request):
+        """Create new session."""
+        return self.createSessionObject(request)
 
 
     @endpoints.method(CONF_POST_REQUEST, ConferenceForm,
