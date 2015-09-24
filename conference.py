@@ -94,9 +94,14 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
-SES_POST_REQUEST = endpoints.ResourceContainer(
+SES_GET_REQUEST = endpoints.ResourceContainer(
     SessionForm,
     websafeConferenceKey=messages.StringField(1),
+)
+
+SES_POST_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSpeaker=messages.StringField(1),
 )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -331,6 +336,11 @@ class ConferenceApi(remote.Service):
         prof = conf.key.parent().get()
         # return ConferenceForm
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
+        
+    @endpoints.method(SES_GET_REQUEST, SessionForm,
+            path='speaker/{websafeSpeaker}',
+            http_method='GET', name='getSessions')
+    def getConference(self, request):
 
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
