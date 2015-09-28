@@ -95,19 +95,19 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 )
 
 SES_GET_REQUEST = endpoints.ResourceContainer(
-    SessionForm,
-    websafeConferenceKey=messages.StringField(1),
+    message_types.VoidMessage,
+    websafeSpeakerName=messages.StringField(1),
 )
 
 SES_POST_REQUEST = endpoints.ResourceContainer(
-    message_types.VoidMessage,
-    websafeSpeaker=messages.StringField(1),
+    SessionForm,
+    websafeConferenceKey=messages.StringField(1),
 )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
-@endpoints.api(name='conference', version='v1', 
+@endpoints.api(name='conference', version='v1',
     allowed_client_ids=[WEB_CLIENT_ID, API_EXPLORER_CLIENT_ID],
     scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
@@ -191,19 +191,22 @@ class ConferenceApi(remote.Service):
 
     def _copySessionToForm(self, ses):
         """Copy relevant fields from Conference to ConferenceForm."""
-        ses = SessionForm()
-        for field in ses.all_fields():
+        print "the parameter passed in is ", ses.name
+        sf = SessionForm()
+        for field in sf.all_fields():
             if hasattr(ses, field.name):
                 # convert Date to date string; just copy others
                 if field.name.endswith('Date'):
-                    setattr(ses, field.name, str(getattr(ses, field.name)))
+                    setattr(sf, field.name, str(getattr(ses, field.name)))
                 else:
-                    setattr(ses, field.name, getattr(ses, field.name))
+                    setattr(sf, field.name, getattr(ses, field.name))
             elif field.name == "websafeKey":
-                setattr(ses, field.name, ses.key.urlsafe())
+                setattr(sf, field.name, ses.key.urlsafe())
 
-        ses.check_initialized()
-        return ses
+        sf.check_initialized()
+        print "inside of _copySessionToForm ... ses.name == ", ses.name
+        return sf
+
 
     def createSessionObject(self, request):
         """Create or update Session object, returning SessionForm/request."""
@@ -234,7 +237,7 @@ class ConferenceApi(remote.Service):
 
         # update existing conference
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        print "conf == ", conf
+        print "conf.name == ", conf.name
         print "conf key == ", conf.key
 
         if not conf:
@@ -337,11 +340,29 @@ class ConferenceApi(remote.Service):
         # return ConferenceForm
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
         
-    @endpoints.method(SES_GET_REQUEST, SessionForm,
-            path='speaker/{websafeSpeaker}',
-            http_method='GET', name='getSessions')
-    def getConference(self, request):
+    @endpoints.method(SES_GET_REQUEST, SessionForms, #SessionForm,
+            path='sessionsBySpeaker/{websafeSpeakerName}',
+            http_method='GET', name='getSessionsBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        print "The speaker is ", request.websafeSpeakerName
 
+        seses = Session.query(Session.speaker == request.websafeSpeakerName)
+
+        for ses in seses:
+            print "The ses name is ", ses.name
+        #    print "The ses key is ", ses.key
+        #    key = ses.key
+        #    print "the ses id is ", key.id()
+        #    print "the key's parent is ", key.parent()
+          
+        #    confs = Conference.query(ancestor=key.parent())
+        #   for conf in confs:
+        #       print "the name of the conf is ", conf.name
+           
+
+        return SessionForms(
+            items=[self._copySessionToForm(ses) for ses in seses]
+        )
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
             path='getConferencesCreated',

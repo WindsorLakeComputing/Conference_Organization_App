@@ -77,7 +77,7 @@ class ConferenceForms(messages.Message):
     items = messages.MessageField(ConferenceForm, 1, repeated=True)
 
 class Session(ndb.Model):
-    """Conference -- Conference object"""
+    """Session -- Session object"""
     name            = ndb.StringProperty(required=True)
     highlights      = ndb.StringProperty(repeated=True)
     speaker         = ndb.StringProperty()
