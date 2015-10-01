@@ -364,6 +364,20 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(ses) for ses in seses]
         )
 
+
+    @endpoints.method(CONF_GET_REQUEST, SessionForms, #SessionForm,
+            path='conferenceSessions/{websafeConferenceKey}',
+            http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        key = conf.key
+
+        seses = Session.query(ancestor=key)
+
+        return SessionForms(
+            items=[self._copySessionToForm(ses) for ses in seses]
+        )
+
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
             path='getConferencesCreated',
             http_method='POST', name='getConferencesCreated')
