@@ -42,6 +42,9 @@ class ProfileForm(messages.Message):
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
     sessionKeysWishList = messages.StringField(5, repeated=True)
 
+class ConferenceStats(messages.Message):
+    some_dict = messages.BytesField(1)
+
 class BooleanMessage(messages.Message):
     """BooleanMessage-- outbound Boolean value message"""
     data = messages.BooleanField(1)

@@ -30,6 +30,7 @@ from models import ProfileMiniForm
 from models import ProfileForm
 from models import BooleanMessage
 from models import Conference
+from models import ConferenceStats
 from models import ConferenceForm
 from models import ConferenceForms
 from models import Session
@@ -40,6 +41,8 @@ from models import ConferenceQueryForms
 from models import TeeShirtSize
 
 from utils import getUserId
+
+import json
 
 from settings import WEB_CLIENT_ID
 
@@ -105,9 +108,19 @@ SES_GET_REQUEST = endpoints.ResourceContainer(
     websafeSessionKey=messages.StringField(1),
 )
 
-SES_GET_SKR_NAME_REQUEST = endpoints.ResourceContainer(
+SES_GET_SPKR_NAME_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSpeakerName=messages.StringField(1),
+)
+
+SES_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSessionKey=messages.StringField(1),
+)
+
+SES_GET_NAME_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSessionName=messages.StringField(1),
 )
 
 SES_POST_REQUEST = endpoints.ResourceContainer(
@@ -126,7 +139,7 @@ class ConferenceApi(remote.Service):
 
 # - - - Conference objects - - - - - - - - - - - - - - - - -
 
-    def _copyConferenceToForm(self, conf, displayName):
+    def _copyConferenceToForm(self, conf, displayName="Anonymous"):
         """Copy relevant fields from Conference to ConferenceForm."""
         cf = ConferenceForm()
         for field in cf.all_fields():
@@ -336,6 +349,36 @@ class ConferenceApi(remote.Service):
         """Update conference w/provided fields & return w/updated info."""
         return self._updateConferenceObject(request)
 
+    @endpoints.method(message_types.VoidMessage, ConferenceStats,
+            path='conferenceStats',
+            http_method='GET', name='getConferenceStats')
+    def getConferenceStats(self, request):
+        stats = {}
+
+        conf_keys = Conference.query().fetch(10,keys_only=True)
+        conferences = ndb.get_multi(conf_keys)
+
+        for conf in conferences:
+            c = {}
+            c['name'] = conf.name
+            c['topics'] = conf.topics
+            c['city'] = conf.city
+            c['startDate'] = conf.startDate
+            
+            key = conf.key
+            sesses = Session.query(ancestor=key)
+            if sesses:
+                for ses in sesses:
+                    s = {}
+                    s['name'] = ses.name
+                    s['speaker'] = ses.speaker
+                    s['sessionType'] = ses.sessionType
+                    s[conf.name + "Session"] = s
+            stats[conf.name] = c
+
+            print stats
+        return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
+
 
     @endpoints.method(CONF_GET_REQUEST, ConferenceForm,
             path='conference/{websafeConferenceKey}',
@@ -351,7 +394,7 @@ class ConferenceApi(remote.Service):
         # return ConferenceForm
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
         
-    @endpoints.method(SES_GET_SKR_NAME_REQUEST, SessionForms, #SessionForm,
+    @endpoints.method(SES_GET_SPKR_NAME_REQUEST, SessionForms, #SessionForm,
             path='sessionsBySpeaker/{websafeSpeakerName}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
@@ -360,7 +403,7 @@ class ConferenceApi(remote.Service):
         seses = Session.query(Session.speaker == request.websafeSpeakerName)
         if not seses:
             raise endpoints.NotFoundException(
-                'Not a single session found with a speaker by the name of : %s' % rrequest.websafeSpeakerName)
+                'Not a single session found with a speaker by the name of : %s' % request.websafeSpeakerName)
 
         for ses in seses:
             print "The ses name is ", ses.name
@@ -377,7 +420,21 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(ses) for ses in seses]
         )
-     
+
+    @endpoints.method(SES_GET_NAME_REQUEST, ConferenceForm, 
+            path='conferenceBySessionName/{websafeSessionName}',
+            http_method='GET', name='getConferenceBySessionName')
+    def getConferenceBySessionName(self, request): 
+
+        ses = Session.query(Session.name == request.websafeSessionName)
+        if not ses:
+            raise endpoints.NotFoundException(
+                'Not a single session found by the name of : %s' % request.websafeSessionName)
+        key = ses.get().key
+        conf = Conference.query(ancestor=key.parent())
+
+        return self._copyConferenceToForm(conf.get())
+
 
     @endpoints.method(SES_GET_TYPE_REQUEST, SessionForms, #SessionForm,
             path='sessionsByType/{websafeConferenceKey}/{typeOfSession}',
@@ -451,6 +508,10 @@ class ConferenceApi(remote.Service):
         user_id =  getUserId(user)
         # create ancestor query for all key matches for this user
         confs = Conference.query(ancestor=ndb.Key(Profile, user_id))
+        if not confs:
+            raise endpoints.NotFoundException(
+                'Not a single conference was created by: %s' % user.nickname())
+
         prof = ndb.Key(Profile, user_id).get()
         # return set of ConferenceForm objects per Conference
         return ConferenceForms(
