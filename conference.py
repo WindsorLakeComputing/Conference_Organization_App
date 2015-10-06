@@ -359,12 +359,13 @@ class ConferenceApi(remote.Service):
         conferences = ndb.get_multi(conf_keys)
 
         for conf in conferences:
+            print "Building a conference"
             c = {}
             c['name'] = conf.name
             c['topics'] = conf.topics
             c['city'] = conf.city
             c['startDate'] = conf.startDate
-            
+            print "name of new conference is ", c['name']
             key = conf.key
             sesses = Session.query(ancestor=key)
             if sesses:
@@ -373,10 +374,14 @@ class ConferenceApi(remote.Service):
                     s['name'] = ses.name
                     s['speaker'] = ses.speaker
                     s['sessionType'] = ses.sessionType
-                    s[conf.name + "Session"] = s
-            stats[conf.name] = c
+                    print "The session name is ", s['name']
+                    c[ses.name + "-Session"] = s
 
-            print stats
+            stats[conf.name + "-Conference"] = c
+
+        for k, v in stats.iteritems():
+            print "{0} : {1}".format(k, v)
+
         return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
 
 
