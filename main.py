@@ -51,7 +51,7 @@ class CheckSpeakerSessionsHandler(webapp2.RequestHandler):
             if ses.speaker == self.request.get('speakerName'):
                 if memcache.get(self.request.get('speakerName')):
                     ses_names = memcache.get(self.request.get('speakerName'))
-                    print "inside of memcache.get(self.request.get('speakerName')) ... ses_names == ", ses_names
+                    print "inside of memcache.get(self.request.get('speakerName')) ... ses_names ==", ses_names
                     ses_names.add(ses.name)
                     memcache.set(self.request.get('speakerName'), ses_names, time=60)
                 else:
