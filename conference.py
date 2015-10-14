@@ -328,11 +328,11 @@ class ConferenceApi(remote.Service):
 
 
     @staticmethod
-    def getSessionsByConfKey(conf_key, urlsafe=True):
+    def getSessionsByConfKey(conf_key, urlsafe=False):
         conf_keys = Conference.query().fetch(50,keys_only=True)
         conferences = ndb.get_multi(conf_keys)
 
-        if not urlsafe:
+        if urlsafe:
             #seses = Session.query(ancestor=conf_key)
             conf_key = ndb.Key(urlsafe=conf_key).get().key
 
