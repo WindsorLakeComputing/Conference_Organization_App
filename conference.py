@@ -20,7 +20,7 @@ from protorpc import messages
 from protorpc import message_types
 from protorpc import remote
 
-from google.appengine.api import memcache
+from google.appengine.api import memcache 
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
@@ -472,7 +472,7 @@ class ConferenceApi(remote.Service):
 
         for ses in seses:
             print "The ses name is ", ses.name
-        #    print "The ses key is ", ses.key
+        #    print "The ses key is", ses.key
         #    key = ses.key
         #    print "the ses id is ", key.id()
         #    print "the key's parent is ", key.parent()
