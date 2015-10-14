@@ -47,6 +47,10 @@ handlers:       # static then dynamic
   script: main.app
   login: admin
 
+- url: /tasks/check_speaker_sessions
+  script: main.app
+  login: admin
+
 libraries:
 
 - name: webapp2
