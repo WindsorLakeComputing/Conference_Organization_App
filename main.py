@@ -46,7 +46,7 @@ class CheckSpeakerSessionsHandler(webapp2.RequestHandler):
         print "The speaker name is ", self.request.get('speakerName')
         conf = ConferenceApi.getConferenceFromKey(self.request.get('conf_key'))
         print "The conf is ", conf.name
-        seses = ConferenceApi.getSessionsByConfKey(self.request.get('conf_key'), False)
+        seses = ConferenceApi.getSessionsByConfKey(self.request.get('conf_key'), True)
         for ses in seses:
             if ses.speaker == self.request.get('speakerName'):
                 if memcache.get(self.request.get('speakerName')):
