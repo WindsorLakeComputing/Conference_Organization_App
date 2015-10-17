@@ -247,6 +247,18 @@ class ConferenceApi(remote.Service):
         if not request.name:
             raise endpoints.BadRequestException("Session 'name' field required")
 
+                # update existing conference
+        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
+
+        if user_id != conf.organizerUserId:
+            raise endpoints.UnauthorizedException('Open only to the organizer of the conference.')
+
+        print "Inside of createSessionObject, conf.organizerUserId == ", conf.organizerUserId
+        print "user_id == ", user_id
+
+
+
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         print "The data[websafekey] is ", data['websafeKey']
@@ -263,9 +275,9 @@ class ConferenceApi(remote.Service):
                 setattr(request, df, S_DEFAULTS[df])
         print "The data is ", data
 
-        # update existing conference
-        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
+
+
+
         print "conf.name == ", conf.name
         print "conf key == ", conf.key
         #if not conf:
@@ -337,19 +349,9 @@ class ConferenceApi(remote.Service):
         print "memcache.get(\"featuredSpeaker\") ", memcache.get("featuredSpeaker"), "length == ", len(memcache.get("featuredSpeaker"))
 
     @staticmethod
-<<<<<<< Updated upstream
-    def getSessionsByConfKey(conf_key, urlsafe=False):
-        conf_keys = Conference.query().fetch(50,keys_only=True)
-        conferences = ndb.get_multi(conf_keys)
-||||||| merged common ancestors
-    def getSessionsByConfKey(conf_key, urlsafe=True):
-        conf_keys = Conference.query().fetch(50,keys_only=True)
-        conferences = ndb.get_multi(conf_keys)
-=======
     def getSessionsByConfKey(conf_key, urlsafe=False):
         #conf_keys = Conference.query().fetch(50,keys_only=True)
         #conferences = ndb.get_multi(conf_keys)
->>>>>>> Stashed changes
 
         if urlsafe:
             #seses = Session.query(ancestor=conf_key)
@@ -453,14 +455,13 @@ class ConferenceApi(remote.Service):
                     s['speaker'] = ses.speaker
                     s['sessionType'] = ses.sessionType
                     print "The session name is ", s['name']
-                    c[ses.name + "-Session"] = s
+                    c[ses.name + " Session"] = s
 
             stats[conf.name + " Conference"] = c
 
         for k, v in stats.iteritems():
             print "{0} : {1}".format(k, v)
 
-        print "memcache.get(\"Jeb\") ", memcache.get("Jeb"), "length == ", len(memcache.get("Jeb"))
         return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
         #return ConferenceStats(some_dict=json.dumps(stats, default=json_util.default))
 
