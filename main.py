@@ -57,6 +57,7 @@ class CheckSpeakerSessionsHandler(webapp2.RequestHandler):
                 else:
                     ses_names = Set([ses.name])
                     memcache.set(self.request.get('speakerName'), ses_names, time=60)
+                    memcache.set("featuredSpeaker", self.request.get('speakerName'), time=3600)
                 #memcache.set(self.request.get('speakerName'), ses.name, time=1800)
                 print "THERE IS A MATCH WITH THIS NAME == ", self.request.get('speakerName')
                 print memcache.get_stats()

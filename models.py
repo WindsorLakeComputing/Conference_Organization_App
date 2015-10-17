@@ -45,6 +45,9 @@ class ProfileForm(messages.Message):
 class ConferenceStats(messages.Message):
     some_dict = messages.BytesField(1)
 
+class FeaturedSpeaker(messages.Message):
+    featured_speaker = messages.StringField(1)
+
 class BooleanMessage(messages.Message):
     """BooleanMessage-- outbound Boolean value message"""
     data = messages.BooleanField(1)

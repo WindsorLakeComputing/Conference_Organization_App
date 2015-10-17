@@ -16,6 +16,8 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 from datetime import datetime
 
 import endpoints
+import warnings 
+
 from protorpc import messages
 from protorpc import message_types
 from protorpc import remote
@@ -33,6 +35,7 @@ from models import Conference
 from models import ConferenceStats
 from models import ConferenceForm
 from models import ConferenceForms
+from models import FeaturedSpeaker
 from models import Session
 from models import SessionForm
 from models import SessionForms
@@ -326,11 +329,27 @@ class ConferenceApi(remote.Service):
        
         return conf
 
+    @endpoints.method(message_types.VoidMessage, FeaturedSpeaker,
+            path='featuredSpeaker',
+            http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+
+        print "memcache.get(\"featuredSpeaker\") ", memcache.get("featuredSpeaker"), "length == ", len(memcache.get("featuredSpeaker"))
 
     @staticmethod
+<<<<<<< Updated upstream
     def getSessionsByConfKey(conf_key, urlsafe=False):
         conf_keys = Conference.query().fetch(50,keys_only=True)
         conferences = ndb.get_multi(conf_keys)
+||||||| merged common ancestors
+    def getSessionsByConfKey(conf_key, urlsafe=True):
+        conf_keys = Conference.query().fetch(50,keys_only=True)
+        conferences = ndb.get_multi(conf_keys)
+=======
+    def getSessionsByConfKey(conf_key, urlsafe=False):
+        #conf_keys = Conference.query().fetch(50,keys_only=True)
+        #conferences = ndb.get_multi(conf_keys)
+>>>>>>> Stashed changes
 
         if urlsafe:
             #seses = Session.query(ancestor=conf_key)
@@ -339,7 +358,7 @@ class ConferenceApi(remote.Service):
         seses_keys = Session.query(ancestor=conf_key).fetch(50,keys_only=True)
 
         if not seses_keys:
-            raise endpoints.NotFoundException(
+            warnings.warn(
                 'Not a single session found with conference key: %s' % conf_key)
 
         seses = ndb.get_multi(seses_keys)
@@ -424,6 +443,7 @@ class ConferenceApi(remote.Service):
             c['startDate'] = conf.startDate
             print "name of new conference is ", c['name']
             key = conf.key
+            print "Inside of getConferenceStats .. the key is ", key
             #sesses = Session.query(ancestor=key)
             seses = ConferenceApi.getSessionsByConfKey(key)
             if seses:
@@ -435,11 +455,12 @@ class ConferenceApi(remote.Service):
                     print "The session name is ", s['name']
                     c[ses.name + "-Session"] = s
 
-            stats[conf.name + "-Conference"] = c
+            stats[conf.name + " Conference"] = c
 
         for k, v in stats.iteritems():
             print "{0} : {1}".format(k, v)
 
+        print "memcache.get(\"Jeb\") ", memcache.get("Jeb"), "length == ", len(memcache.get("Jeb"))
         return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
         #return ConferenceStats(some_dict=json.dumps(stats, default=json_util.default))
 
