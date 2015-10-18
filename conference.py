@@ -174,7 +174,6 @@ class ConferenceApi(remote.Service):
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-        print "The data[websafekey] is ", data['websafeKey']
         del data['websafeKey']
         del data['organizerDisplayName']
 
@@ -199,7 +198,6 @@ class ConferenceApi(remote.Service):
         # generate Profile Key based on user ID and Conference
         # ID based on Profile key get Conference key from ID
         p_key = ndb.Key(Profile, user_id)
-        print "The p_key is ", p_key
         c_id = Conference.allocate_ids(size=1, parent=p_key)[0]
         c_key = ndb.Key(Conference, c_id, parent=p_key)
         data['key'] = c_key
@@ -208,7 +206,6 @@ class ConferenceApi(remote.Service):
         # create Conference, send email to organizer confirming
         # creation of Conference & return (modified) ConferenceForm
         # TODO 2: add confirmation email sending task to queue
-        print "Before Session(**data).put() ... data == ", data
         Conference(**data).put()
         taskqueue.add(params={'email': user.email(),
             'conferenceInfo': repr(request)},
@@ -219,7 +216,6 @@ class ConferenceApi(remote.Service):
 
     def _copySessionToForm(self, ses):
         """Copy relevant fields from Conference to ConferenceForm."""
-        print "the parameter passed in is ", ses.name
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(ses, field.name):
@@ -232,9 +228,8 @@ class ConferenceApi(remote.Service):
                 setattr(sf, field.name, ses.key.urlsafe())
 
         sf.check_initialized()
-        print "inside of _copySessionToForm ... ses.name == ", ses.name
-        return sf
 
+        return sf
 
     def createSessionObject(self, request):
         """Create or update Session object, returning SessionForm/request."""
@@ -247,126 +242,64 @@ class ConferenceApi(remote.Service):
         if not request.name:
             raise endpoints.BadRequestException("Session 'name' field required")
 
-                # update existing conference
-        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
         conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
 
         if user_id != conf.organizerUserId:
             raise endpoints.UnauthorizedException('Open only to the organizer of the conference.')
 
-        print "Inside of createSessionObject, conf.organizerUserId == ", conf.organizerUserId
-        print "user_id == ", user_id
-
-
-
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-        print "The data[websafekey] is ", data['websafeKey']
         del data['websafeKey']
         del data['websafeConferenceKey']
 
-
-        #del data['organizerDisplayName']
-
-        # add default values for those missing (both data model & outbound Message)
         for df in S_DEFAULTS:
             if data[df] in (None, []):
                 data[df] = S_DEFAULTS[df]
                 setattr(request, df, S_DEFAULTS[df])
-        print "The data is ", data
-
-
-
-
-        print "conf.name == ", conf.name
-        print "conf key == ", conf.key
-        #if not conf:
-        #    raise endpoints.NotFoundException(
-        #        'No conference found with key: %s' % request.websafeConferenceKey)
-
 
         s_id = Session.allocate_ids(size=1, parent=conf.key)[0]
         s_key = ndb.Key(Session, s_id, parent=conf.key)
         data['key'] = s_key
 
-        print "Before Session(**data).put() ... data == ", data
-
-        print "Before  taskqueue.add(params={'conf_key': conf.key, "
-        print "conf.key == ", conf.key.urlsafe()
-        print "speakerName == ", data['speaker']
-
         taskqueue.add(params={'conf_key': conf.key.urlsafe(),
             'speakerName': data['speaker']},
             url='/tasks/check_speaker_sessions'
         )
-
-
-        #self.checkSpeaker(conf.key, data['speaker'])
-
-
         Session(**data).put()
-        # check that conference exists
-        
-        # check that user is owner
-        #if user_id != conf.organizerUserId:
-        #    raise endpoints.ForbiddenException(
-        #        'Only the owner can update the conference.')
-        print "THe conference key is ", conf.key
-
-
-
         ses = s_key.get()
-      
+
         return self._copySessionToForm(ses)
-
-    def checkSpeaker(self, conf_key, speaker):
-
-        seses = ConferenceApi.getSessionsByConfKey(conf_key)
-        print "inside of getSessions ... the conf_key is",conf_key," the speaker is ", speaker
-        print "the seses are: "
-
-        for ses in seses:
-            print ses.name
 
     @staticmethod
     def getConferenceFromKey(conf_key):
-        #conf = Session.query(ancestor=conf_key)
-        print "INSIDE OF ... getConferenceFromKey"
-        print "The key is ", conf_key
         conf = ndb.Key(urlsafe=conf_key).get()
-        #conf = key.get()
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % conf_key)
-       
+
         return conf
 
-    @endpoints.method(message_types.VoidMessage, FeaturedSpeaker,
+    @endpoints.method(message_types.VoidMessage, StringMessage,
             path='featuredSpeaker',
             http_method='GET', name='getFeaturedSpeaker')
     def getFeaturedSpeaker(self, request):
-
-        print "memcache.get(\"featuredSpeaker\") ", memcache.get("featuredSpeaker"), "length == ", len(memcache.get("featuredSpeaker"))
+        """The featured speaker is a speaker who is only allocated one session."""
+        featuredSpeaker = "No featured speaker"
+        if memcache.get("featuredSpeaker"):
+            featuredSpeaker = memcache.get("featuredSpeaker")
+        return StringMessage(data=featuredSpeaker)
 
     @staticmethod
     def getSessionsByConfKey(conf_key, urlsafe=False):
-        #conf_keys = Conference.query().fetch(50,keys_only=True)
-        #conferences = ndb.get_multi(conf_keys)
-
         if urlsafe:
-            #seses = Session.query(ancestor=conf_key)
             conf_key = ndb.Key(urlsafe=conf_key).get().key
-
         seses_keys = Session.query(ancestor=conf_key).fetch(50,keys_only=True)
-
         if not seses_keys:
             warnings.warn(
                 'Not a single session found with conference key: %s' % conf_key)
-
         seses = ndb.get_multi(seses_keys)
+
         return seses
-            
-        
 
     @ndb.transactional()
     def _updateConferenceObject(self, request):
@@ -403,22 +336,22 @@ class ConferenceApi(remote.Service):
                 setattr(conf, field.name, data)
         conf.put()
         prof = ndb.Key(Profile, user_id).get()
+
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
 
 
     @endpoints.method(ConferenceForm, ConferenceForm, path='conference',
             http_method='POST', name='createConference')
     def createConference(self, request):
-        """Create new conference."""
+        """Create a new conference."""
         return self._createConferenceObject(request)
 
     @endpoints.method(SES_POST_REQUEST, SessionForm, 
             path='conference/{websafeConferenceKey}/session',
             http_method='POST', name='createSession')
     def createSession(self, request):
-        """Create new session."""
+        """Create a new session."""
         return self.createSessionObject(request)
-
 
     @endpoints.method(CONF_POST_REQUEST, ConferenceForm,
             path='conference/{websafeConferenceKey}',
@@ -431,22 +364,18 @@ class ConferenceApi(remote.Service):
             path='conferenceStats',
             http_method='GET', name='getConferenceStats')
     def getConferenceStats(self, request):
+        """Get all conferences and all their respective sessions"""
         stats = {}
-
         conf_keys = Conference.query().fetch(50,keys_only=True)
         conferences = ndb.get_multi(conf_keys)
 
         for conf in conferences:
-            print "Building a conference"
             c = {}
             c['name'] = conf.name
             c['topics'] = conf.topics
             c['city'] = conf.city
             c['startDate'] = conf.startDate
-            print "name of new conference is ", c['name']
             key = conf.key
-            print "Inside of getConferenceStats .. the key is ", key
-            #sesses = Session.query(ancestor=key)
             seses = ConferenceApi.getSessionsByConfKey(key)
             if seses:
                 for ses in seses:
@@ -454,56 +383,31 @@ class ConferenceApi(remote.Service):
                     s['name'] = ses.name
                     s['speaker'] = ses.speaker
                     s['sessionType'] = ses.sessionType
-                    print "The session name is ", s['name']
                     c[ses.name + " Session"] = s
-
             stats[conf.name + " Conference"] = c
 
-        for k, v in stats.iteritems():
-            print "{0} : {1}".format(k, v)
-
         return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
-        #return ConferenceStats(some_dict=json.dumps(stats, default=json_util.default))
-
 
     @endpoints.method(CONF_GET_REQUEST, ConferenceForm,
             path='conference/{websafeConferenceKey}',
             http_method='GET', name='getConference')
     def getConference(self, request):
         """Return requested conference (by websafeConferenceKey)."""
-        # get Conference object from request; bail if not found
-        print "request.websafeConferenceKey == ", request.websafeConferenceKey
-        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-
         conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
-        
         prof = conf.key.parent().get()
-        # return ConferenceForm
+
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
         
-    @endpoints.method(SES_GET_SPKR_NAME_REQUEST, SessionForms, #SessionForm,
+    @endpoints.method(SES_GET_SPKR_NAME_REQUEST, SessionForms,
             path='sessionsBySpeaker/{websafeSpeakerName}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
-        print "The speaker is ", request.websafeSpeakerName
-
+        """Return all sessions that a speaker is speaking at."""
         seses = Session.query(Session.speaker == request.websafeSpeakerName)
         if not seses:
             raise endpoints.NotFoundException(
                 'Not a single session found with a speaker by the name of : %s' % request.websafeSpeakerName)
-
-        for ses in seses:
-            print "The ses name is ", ses.name
-        #    print "The ses key is", ses.key
-        #    key = ses.key
-        #    print "the ses id is ", key.id()
-        #    print "the key's parent is ", key.parent()
-          
-        #    confs = Conference.query(ancestor=key.parent())
-        #   for conf in confs:
-        #       print "the name of the conf is ", conf.name
-           
-
+            
         return SessionForms(
             items=[self._copySessionToForm(ses) for ses in seses]
         )
@@ -511,8 +415,8 @@ class ConferenceApi(remote.Service):
     @endpoints.method(SES_GET_NAME_REQUEST, ConferenceForm, 
             path='conferenceBySessionName/{websafeSessionName}',
             http_method='GET', name='getConferenceBySessionName')
-    def getConferenceBySessionName(self, request): 
-
+    def getConferenceBySessionName(self, request):
+        """Get a conference according to the name of a session that its hosting."""
         ses = Session.query(Session.name == request.websafeSessionName)
         if not ses:
             raise endpoints.NotFoundException(
@@ -522,49 +426,27 @@ class ConferenceApi(remote.Service):
 
         return self._copyConferenceToForm(conf.get())
 
-
-    @endpoints.method(SES_GET_TYPE_REQUEST, SessionForms, #SessionForm,
+    @endpoints.method(SES_GET_TYPE_REQUEST, SessionForms,
             path='sessionsByType/{websafeConferenceKey}/{typeOfSession}',
             http_method='GET', name='getConferenceSessionsByType')
     def getConferenceSessionsByType(self, request):
-        print "The websafeConferenceKey is ", request.websafeConferenceKey
-        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        """Return all sessions of a given type for a given conference."""
         conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
-        
         key = conf.key
-        print "The type is", request.typeOfSession
-
-
         seses = ConferenceApi.getSessionsByConfKey(key)
-        #seses = Session.query(ancestor=key)
-        #if not seses:
-        #    raise endpoints.NotFoundException(
-        #        'This conference doesnt have any sessions : %s' % request.websafeConferenceKey)
-        
 
         return SessionForms(
             items=[self._copySessionToForm(ses) for ses in seses if ses.sessionType == request.typeOfSession]
         )
 
-
-    @endpoints.method(CONF_GET_REQUEST, SessionForms, #SessionForm,
+    @endpoints.method(CONF_GET_REQUEST, SessionForms,
             path='conferenceSessions/{websafeConferenceKey}',
             http_method='GET', name='getConferenceSessions')
     def getConferenceSessions(self, request):
-        #conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        """Return all sessions of a given conference."""
         conf_key = request.websafeConferenceKey
-        print "inside of getConferenceSessions(), the conf_key is ", conf_key
-
         conf = ConferenceApi.getConferenceFromKey(conf_key)
-       
-        key = conf.key
-
-        seses = ConferenceApi.getSessionsByConfKey(key)
-
-        #seses = Session.query(ancestor=key)
-        #if not seses:
-        #    raise endpoints.NotFoundException(
-        #        'Not a single session found with conference key: %s' % request.websafeConferenceKey)
+        seses = ConferenceApi.getSessionsByConfKey(conf_key, True)
 
         return SessionForms(
             items=[self._copySessionToForm(ses) for ses in seses]
@@ -574,17 +456,14 @@ class ConferenceApi(remote.Service):
             path='getSessionsInWishlist',
             http_method='GET', name='getSessionsInWishlist')
     def getSessionsInWishlist(self, request):
+        """Return a list of sessions that the user wishes to attend."""
         prof = self._getProfileFromUser() # get user Profile
         ses_keys = [ndb.Key(urlsafe=wssk) for wssk in prof.sessionKeysWishList]
         sesses = ndb.get_multi(ses_keys)
 
-
-
-        # return set of ConferenceForm objects per Conference
         return SessionForms(
             items=[self._copySessionToForm(ses) for ses in sesses]
         )
-
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
             path='getConferencesCreated',
@@ -607,7 +486,6 @@ class ConferenceApi(remote.Service):
         return ConferenceForms(
             items=[self._copyConferenceToForm(conf, getattr(prof, 'displayName')) for conf in confs]
         )
-
 
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
@@ -763,6 +641,7 @@ class ConferenceApi(remote.Service):
 
     @ndb.transactional(xg=True)
     def _addSessionToWishlist(self, request):
+        """Add a session to the user's wish list of sessions."""
         retval = None
         prof = self._getProfileFromUser() # get user Profile
         wssk = request.websafeSessionKey
@@ -784,16 +663,7 @@ class ConferenceApi(remote.Service):
         """Register or unregister user for selected conference."""
         retval = None
         prof = self._getProfileFromUser() # get user Profile
-
-        # check if conf exists given websafeConfKey
-        # get conference; check that it exists
-        #wsck = request.websafeConferenceKey
-        #conf = ndb.Key(urlsafe=wsck).get()
         conf = ConferenceApi.getConferenceFromKey(request.websafeConferenceKey)
-        #if not conf:
-        #    raise endpoints.NotFoundException(
-        #        'No conference found with key: %s' % wsck)
-
         # register
         if reg:
             # check if user already registered otherwise add
@@ -831,9 +701,9 @@ class ConferenceApi(remote.Service):
     @endpoints.method(SES_GET_REQUEST, BooleanMessage,
             path='session/{websafeSessionKey}',
             http_method='POST', name='addSessionToWishlist')
-    def addSessionToWishlist(self, request):       
+    def addSessionToWishlist(self, request):
+        """Add a session to the user's wish list of sessions."""
         return self._addSessionToWishlist(request)
-
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
             path='conferences/attending',

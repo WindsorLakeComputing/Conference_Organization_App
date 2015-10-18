@@ -1,4 +1,17 @@
-App Engine application for the Udacity training course.
+Task 1: Add Sessions to a Conference
+Explain your design choices
+
+Inside of the models.py class I created a session class with the same attributes listed in the grading rubric. The name field is required – as it is in the Conference class. The highlights field allows for multiple entries because a session can have multiple highlights. The SessionForm class, like the ConferenceForm class, allows fields to be transported between the web application front end and the database. 
+I created a session as a child of the conference because it’s easy to get all sessions associated with a conference with the following query: Session.query(ancestor=conference_key).fetch(). Because the session class has the field speaker it’s easy to implement the getSessionsBySpeaker(speaker) as thus: seses = Session.query(Session.speaker == request.websafeSpeakerName).
+
+Task 3: Work on indexes and queries
+Come up with 2 additional queries
+
+Inside of conference.py please see the code for the following methods: getConferenceStats(self, request) and getConferenceBySessionName(self, request). 
+Solve the following query related problem
+
+In order to handle a query for all non-workshop sessions before 7 pm I would create a query that returns all sessions that aren’t of type “workshop.” I would then further filter the sessions by running a query against the just returned sessions that filtered out sessions that have a start time of 7 pm or greater. The problem of implementing this query is that it is composed of 2 variables – session type and start time – rather than just 1. I solved it by diving it into 2 separate queries.
+
 
 ## Products
 - [App Engine][1]
