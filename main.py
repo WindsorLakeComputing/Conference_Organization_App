@@ -18,6 +18,10 @@ from google.appengine.api import mail
 from conference import ConferenceApi
 from google.appengine.api import memcache
 from sets import Set
+from models import Session
+from google.appengine.ext import ndb
+
+max_seses_alwd = 50
 
 class SetAnnouncementHandler(webapp2.RequestHandler):
     def get(self):
@@ -42,10 +46,11 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
 class CheckSpeakerSessionsHandler(webapp2.RequestHandler):
     def post(self):
         """ If there is more than one session by this speaker at this conference, add a new Memcache entry"""
-        conf = ConferenceApi.getConferenceFromKey(self.request.get('conf_key'))
-        seses = ConferenceApi.getSessionsByConfKey(self.request.get('conf_key'), True)
-        for ses in seses:
-            if ses.speaker == self.request.get('speakerName'):
+        conf_key = ndb.Key(urlsafe=self.request.get('conf_key')).get().key
+        seses_keys = Session.query(ancestor=conf_key, filters=ndb.AND(Session.speaker == self.request.get('speakerName'))).fetch(max_seses_alwd,keys_only=True)
+        if len(seses_keys) > 1:
+            sessions = ndb.get_multi(seses_keys)
+            for ses in sessions:
                 if memcache.get(self.request.get('speakerName')):
                     ses_names = memcache.get(self.request.get('speakerName'))
                     ses_names.add(ses.name)
@@ -53,8 +58,8 @@ class CheckSpeakerSessionsHandler(webapp2.RequestHandler):
                 else:
                     ses_names = Set([ses.name])
                     memcache.set(self.request.get('speakerName'), ses_names, time=60)
-                    memcache.set("featuredSpeaker", self.request.get('speakerName'), time=3600)
-
+            featuredSpeaker = self.request.get('speakerName') + ":" + repr(ses_names)
+            memcache.set("featuredSpeaker", featuredSpeaker, time=3600)
 
 app = webapp2.WSGIApplication([
     ('/crons/set_announcement', SetAnnouncementHandler),

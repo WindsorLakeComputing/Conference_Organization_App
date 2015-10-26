@@ -17,6 +17,7 @@ from datetime import datetime
 
 import endpoints
 import warnings 
+import os
 
 from protorpc import messages
 from protorpc import message_types
@@ -90,6 +91,8 @@ FIELDS =    {
             'MONTH': 'month',
             'MAX_ATTENDEES': 'maxAttendees',
             }
+
+max_seses_alwd = 50
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -231,7 +234,7 @@ class ConferenceApi(remote.Service):
 
         return sf
 
-    def createSessionObject(self, request):
+    def _createSessionObject(self, request):
         """Create or update Session object, returning SessionForm/request."""
         # preload necessary data items
         user = endpoints.get_current_user()
@@ -272,7 +275,13 @@ class ConferenceApi(remote.Service):
 
     @staticmethod
     def getConferenceFromKey(conf_key):
-        conf = ndb.Key(urlsafe=conf_key).get()
+        urlsafe_key = ndb.Key(urlsafe=conf_key)
+        kind_string = urlsafe_key.kind() 
+        ident = urlsafe_key.id()
+        if not urlsafe_key.id() or not ident:
+            raise endpoints.BadRequestException(
+                'This Conference key is invalid: %s' % conf_key)
+        conf = urlsafe_key.get()
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % conf_key)
@@ -293,7 +302,7 @@ class ConferenceApi(remote.Service):
     def getSessionsByConfKey(conf_key, urlsafe=False):
         if urlsafe:
             conf_key = ndb.Key(urlsafe=conf_key).get().key
-        seses_keys = Session.query(ancestor=conf_key).fetch(50,keys_only=True)
+        seses_keys = Session.query(ancestor=conf_key).fetch(max_seses_alwd,keys_only=True)
         if not seses_keys:
             warnings.warn(
                 'Not a single session found with conference key: %s' % conf_key)
@@ -366,7 +375,7 @@ class ConferenceApi(remote.Service):
     def getConferenceStats(self, request):
         """Get all conferences and all their respective sessions"""
         stats = {}
-        conf_keys = Conference.query().fetch(50,keys_only=True)
+        conf_keys = Conference.query().fetch(max_seses_alwd,keys_only=True)
         conferences = ndb.get_multi(conf_keys)
 
         for conf in conferences:
@@ -374,7 +383,6 @@ class ConferenceApi(remote.Service):
             c['name'] = conf.name
             c['topics'] = conf.topics
             c['city'] = conf.city
-            c['startDate'] = conf.startDate
             key = conf.key
             seses = ConferenceApi.getSessionsByConfKey(key)
             if seses:
@@ -386,7 +394,7 @@ class ConferenceApi(remote.Service):
                     c[ses.name + " Session"] = s
             stats[conf.name + " Conference"] = c
 
-        return ConferenceStats(some_dict=json.dumps(stats, ensure_ascii=True))
+        return ConferenceStats(conferences_dict=json.dumps(stats, ensure_ascii=True))
 
     @endpoints.method(CONF_GET_REQUEST, ConferenceForm,
             path='conference/{websafeConferenceKey}',

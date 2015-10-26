@@ -43,7 +43,7 @@ class ProfileForm(messages.Message):
     sessionKeysWishList = messages.StringField(5, repeated=True)
 
 class ConferenceStats(messages.Message):
-    some_dict = messages.BytesField(1)
+    conferences_dict = messages.BytesField(1)
 
 class FeaturedSpeaker(messages.Message):
     featured_speaker = messages.StringField(1)
@@ -99,10 +99,10 @@ class SessionForm(messages.Message):
     name            = messages.StringField(1)
     highlights      = messages.StringField(2, repeated=True)
     speaker         = messages.StringField(3)
-    duration        = messages.StringField(4)
+    duration        = messages.IntegerField(4)
     sessionType     = messages.StringField(5)
     date            = messages.StringField(6) 
-    startTime       = messages.IntegerField(7)
+    startTime       = messages.StringField(7)
     websafeKey      = messages.StringField(8)
 
 
